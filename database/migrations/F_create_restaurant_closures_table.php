@@ -11,11 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // database/migrations/XXXX_create_mesas_table.php
-        Schema::create('mesas', function (Blueprint $table) {
+        
+        Schema::create('restaurant_closures', function (Blueprint $table) {
             $table->id();
-            $table->tinyInteger('capacidad_maxima')->default(4); // Siempre 4
-            $table->string('estado')->default('disponible'); // disponible, ocupada, etc.
+            $table->date('closure_date');
+            $table->string('reason')->nullable();
+            $table->boolean('is_recurring')->default(false);
             $table->timestamps();
         });
     }
@@ -25,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('mesas');
+        Schema::dropIfExists('restaurant_closures');
     }
 };
