@@ -54,16 +54,6 @@
                                 @enderror
                             </div>
 
-                            <div>
-                                <x-label for="table_id" :value="__('Mesa')" />
-                                <select id="table_id" name="table_id" class="block mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" required>
-                                    <option value="">Primero seleccione una zona</option>
-                                </select>
-                                @error('table_id')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-
                             <!-- Número de Invitados -->
                             <div>
                                 <x-label for="guest_count" :value="__('Número de Invitados')" />
@@ -128,12 +118,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(`Error HTTP: ${response.status}`);
             }
             
-            const data = await response.json();
-            console.log('Mesas recibidas:', data); // Para depuración
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.message || 'Error al obtener mesas');
+            }
+            
+            console.log('Mesas recibidas:', result.data); // Para depuración
             
             tableSelect.innerHTML = '<option value="">Seleccione una mesa</option>';
             
-            data.forEach(table => {
+            if (result.data.length === 0) {
+                tableSelect.innerHTML = '<option value="">No hay mesas disponibles en esta zona</option>';
+                return;
+            }
+            
+            result.data.forEach(table => {
                 const option = new Option(
                     `${table.name} (Capacidad: ${table.capacity})`,
                     table.id
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Error al cargar mesas:', error);
-            tableSelect.innerHTML = '<option value="">Error al cargar mesas</option>';
+            tableSelect.innerHTML = `<option value="">Error: ${error.message}</option>`;
         }
     });
     
