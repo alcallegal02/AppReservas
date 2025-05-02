@@ -62,10 +62,14 @@
                                                 @if($reservation->status === 'pending' || $reservation->status === 'confirmed')
                                                     <a href="{{ route('reservations.edit', $reservation) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">Editar</a>
                                                     <form action="{{ route('reservations.destroy', $reservation) }}" method="POST" class="inline">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="text-red-600 hover:text-red-900" onclick="return confirm('¿Estás seguro de cancelar esta reserva?')">Cancelar</button>
-                                                    </form>
+    @csrf
+    @method('DELETE')
+    <button type="submit" 
+            class="text-red-600 hover:text-red-900"
+            onclick="return confirm('¿Estás seguro de que deseas cancelar esta reserva? Esta acción no se puede deshacer.')">
+        Cancelar
+    </button>
+</form>
                                                 @endif
                                             </td>
                                         </tr>

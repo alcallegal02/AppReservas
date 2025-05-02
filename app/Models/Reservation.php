@@ -42,10 +42,10 @@ class Reservation extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function table(): BelongsTo
-    {
-        return $this->belongsTo(Table::class);
-    }
+    public function table()
+{
+    return $this->belongsTo(Table::class)->with('zone');
+}
 
     public function timeSlot(): BelongsTo
     {
@@ -58,4 +58,12 @@ class Reservation extends Model
         return $query->where('reservation_date', '>=', now()->toDateString())
                     ->where('status', self::STATUS_CONFIRMED);
     }
+
+    // En el modelo Reservation.php
+public function zone()
+{
+    return $this->through('table')->has('zone');
+}
+
+
 }
