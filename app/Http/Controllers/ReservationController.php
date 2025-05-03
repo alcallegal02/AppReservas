@@ -10,6 +10,7 @@ use App\Models\RestaurantClosure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
@@ -34,9 +35,19 @@ class ReservationController extends Controller
             'reservation_date' => 'required|date|after_or_equal:today',
             'time_slot_id' => 'required|exists:time_slots,id',
             'zone_id' => 'required|exists:zones,id',
-            'guest_count' => 'required|integer|min:1',
+            'guest_count' => 'required|integer|min:1|max:10', // Añadido max:10
             'special_requests' => 'nullable|string',
         ]);
+
+        // Validar capacidad de mesa
+        $maxCapacity = Table::where('zone_id', $validated['zone_id'])
+            ->max('capacity');
+            
+        if ($validated['guest_count'] > $maxCapacity) {
+            return back()->withInput()->withErrors([
+                'guest_count' => 'El número de comensales excede la capacidad máxima de las mesas en esta zona.'
+            ]);
+        }
 
         if (RestaurantClosure::where('closure_date', $validated['reservation_date'])->exists()) {
             return back()->withInput()->with('error', 'El restaurante está cerrado en la fecha seleccionada.');
@@ -81,8 +92,14 @@ class ReservationController extends Controller
 
     public function edit(Reservation $reservation)
     {
-        if (Auth::id() !== $reservation->user_id) {
-            return redirect()->route('reservations.index')->with('error', 'No tienes permiso para editar esta reserva.');
+        // Verificar autorización
+        if (Auth::id() !== $reservation->user_id && !Auth::user()->isAdmin()) {
+            abort(403);
+        }
+
+        // Verificar si la reserva es pasada
+        if (Carbon::parse($reservation->reservation_date)->isPast()) {
+            return redirect()->route('reservations.index')->with('error', 'No puedes editar reservas pasadas.');
         }
 
         $reservation->load('table.zone', 'timeSlot');
@@ -95,10 +112,14 @@ class ReservationController extends Controller
 
     public function update(Request $request, Reservation $reservation)
     {
-        Log::debug('Datos recibidos en update:', $request->all());
+        // Verificar autorización
+        if (Auth::id() !== $reservation->user_id && !Auth::user()->isAdmin()) {
+            abort(403);
+        }
 
-        if (Auth::id() !== $reservation->user_id) {
-            return redirect()->route('reservations.index')->with('error', 'No tienes permiso para editar esta reserva.');
+        // Verificar si la reserva es pasada
+        if (Carbon::parse($reservation->reservation_date)->isPast()) {
+            return redirect()->route('reservations.index')->with('error', 'No puedes actualizar reservas pasadas.');
         }
 
         $validated = $request->validate([
@@ -108,6 +129,16 @@ class ReservationController extends Controller
             'guest_count' => 'required|integer|min:1',
             'special_requests' => 'nullable|string',
         ]);
+
+        // Validar capacidad de mesa
+        $maxCapacity = Table::where('zone_id', $validated['zone_id'])
+            ->max('capacity');
+            
+        if ($validated['guest_count'] > $maxCapacity) {
+            return back()->withInput()->withErrors([
+                'guest_count' => 'El número de comensales excede la capacidad máxima de las mesas en esta zona.'
+            ]);
+        }
 
         if (RestaurantClosure::where('closure_date', $validated['reservation_date'])->exists()) {
             return back()->withInput()->with('error', 'El restaurante está cerrado en la fecha seleccionada.');
@@ -174,42 +205,44 @@ class ReservationController extends Controller
     }
 
     public function destroy(Reservation $reservation, Request $request)
-{
-    if (Auth::id() !== $reservation->user_id) {
-        return redirect()->route('reservations.index')->with('error', 'No tienes permiso para esta acción.');
-    }
-
-    try {
-        if ($request->has('complete_delete')) {
-            // Eliminación permanente
-            $reservation->delete();
-            return redirect()->route('reservations.index')->with('success', 'Reserva eliminada permanentemente.');
-        } else {
-            // Cambio de estado a cancelado (como estaba antes)
-            if (in_array($reservation->status, ['cancelled', 'completed', 'no_show'])) {
-                return redirect()->back()->with('error', 'La reserva ya está '.$reservation->status);
-            }
-            $reservation->update(['status' => 'cancelled']);
-            return redirect()->route('reservations.index')->with('success', 'Reserva cancelada exitosamente.');
+    {
+        // Verificar autorización
+        if (Auth::id() !== $reservation->user_id && !Auth::user()->isAdmin()) {
+            abort(403);
         }
-    } catch (\Exception $e) {
-        Log::error('Error: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'Ocurrió un error al procesar la solicitud.');
+
+        // Verificar si la reserva es pasada
+        if (Carbon::parse($reservation->reservation_date)->isPast()) {
+            return redirect()->route('reservations.index')->with('error', 'No puedes cancelar reservas pasadas.');
+        }
+
+        try {
+            if ($request->has('complete_delete')) {
+                $reservation->delete();
+                return redirect()->route('reservations.index')->with('success', 'Reserva eliminada permanentemente.');
+            } else {
+                if (in_array($reservation->status, ['cancelled', 'completed', 'no_show'])) {
+                    return redirect()->back()->with('error', 'La reserva ya está '.$reservation->status);
+                }
+                $reservation->update(['status' => 'cancelled']);
+                return redirect()->route('reservations.index')->with('success', 'Reserva cancelada exitosamente.');
+            }
+        } catch (\Exception $e) {
+            Log::error('Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Ocurrió un error al procesar la solicitud.');
+        }
     }
-}
 
-public function show(Reservation $reservation)
-{
-    if (Auth::id() !== $reservation->user_id) {
-        return redirect()->route('reservations.index')->with('error', 'No tienes permiso para ver esta reserva.');
+    public function show(Reservation $reservation)
+    {
+        // Verificar autorización
+        if (Auth::id() !== $reservation->user_id && !Auth::user()->isAdmin()) {
+            abort(403);
+        }
+
+        $reservation->load(['table.zone', 'timeSlot']);
+        $closures = RestaurantClosure::where('closure_date', '>=', now()->toDateString())->get();
+
+        return view('reservations.show', compact('reservation', 'closures'));
     }
-
-    // Cargar relaciones necesarias
-    $reservation->load(['table.zone', 'timeSlot']);
-    
-    // Obtener días de cierre para mostrarlos en la vista
-    $closures = RestaurantClosure::where('closure_date', '>=', now()->toDateString())->get();
-
-    return view('reservations.show', compact('reservation', 'closures'));
-}
 }
