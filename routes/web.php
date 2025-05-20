@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 
 // Ruta de bienvenida (pública)
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('/login');
 });
 
 // Rutas de autenticación

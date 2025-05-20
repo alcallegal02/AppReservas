@@ -22,7 +22,7 @@ return new class extends Migration
             // Datos de la reserva
             $table->date('reservation_date');
             $table->time('start_time');
-            $table->time('end_time')->default(DB::raw('ADDTIME(start_time, "01:30:00")'));
+            $table->time('end_time');
             $table->integer('guest_count');
             
             // Estado y control
