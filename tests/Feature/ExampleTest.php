@@ -3,5 +3,6 @@
 it('returns a successful response', function () {
     $response = $this->get('/');
 
-    $response->assertStatus(200);
+    // Verifica que redirige a /login
+    $response->assertRedirect('/login');
 });
